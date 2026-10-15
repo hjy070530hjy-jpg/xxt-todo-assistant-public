@@ -1,7 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
-tool_data = [('extras/geek/geek.exe', 'extras/geek')] if Path('extras/geek/geek.exe').is_file() else []
+if not Path('extras/geek/geek.exe').is_file():
+    raise RuntimeError('单文件发行版需要先将 Geek 放到 extras/geek/geek.exe')
+tool_data = [('extras/geek/geek.exe', 'extras/geek')]
 a = Analysis(
     ['main.py'],
     pathex=[],
@@ -22,8 +24,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=True,
+    a.binaries,
+    a.datas,
     name='XXTTodoAssistant',
     debug=False,
     bootloader_ignore_signals=False,
@@ -35,13 +37,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='XXTTodoAssistant',
 )

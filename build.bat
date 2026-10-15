@@ -8,7 +8,7 @@ if errorlevel 1 goto fail
 if errorlevel 1 goto fail
 ".venv\Scripts\python.exe" -m PyInstaller --noconfirm XXTTodoAssistant.spec
 if errorlevel 1 goto fail
-echo 完成，请打开 dist\XXTTodoAssistant\XXTTodoAssistant.exe
+echo 完成，单文件程序位于 dist\XXTTodoAssistant.exe
 pause
 exit /b 0
 :fail

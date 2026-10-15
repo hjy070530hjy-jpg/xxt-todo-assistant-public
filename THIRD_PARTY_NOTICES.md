@@ -11,6 +11,6 @@
 
 完整依赖与版本见 requirements-lock.txt。研究资料未作为已验证的官方公开接口发布。平台自身内容、名称和标识归其权利人所有。
 
-本机百宝箱可选整合用户提供的 Geek Uninstaller 1.6.0.200，由原软件权利人保留权利，不属于本项目 MIT 许可范围。源码不包含该可执行文件；本次本机复制未修改其内容或数字签名。使用方法见 docs/百宝箱.md。
+Windows 单文件 EXE 内置用户提供的 Geek Uninstaller 1.6.0.200，由原软件权利人保留权利，不属于本项目 MIT 许可范围。源码不包含该可执行文件；复制与打包未修改其内容或数字签名。使用方法见 docs/百宝箱.md。
 
 内存清理参考 PCL-Community/PCL-CE 贡献者在提交 7b5c912ffa29ef5554d069e7605d3faa99238c4a 下公开的 MemSwapService/MemSwapWorks 设计与系统调用，原项目采用 Apache-2.0；许可见 licenses/PCL-CE-Apache-2.0.txt，研究说明见 docs/内存清理研究.md。本项目独立编写 Python 实现，未引入 PCL 可执行文件或 C# 源文件；与 PCL 官方没有从属关系。没有复制许可不同的 PCL 主线代码。

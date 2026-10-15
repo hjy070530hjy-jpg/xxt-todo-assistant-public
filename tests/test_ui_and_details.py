@@ -165,7 +165,11 @@ class SettingsTests(WindowTestCase):
                 self.assertEqual(geek_path({}),executable)
                 with self.assertRaises(FileNotFoundError):open_geek({})
                 executable.parent.mkdir(parents=True);executable.write_bytes(b'test fixture')
-                with patch('assistant.toolbox.os.startfile') as start:open_geek({});start.assert_called_once_with(str(executable))
+                with patch.dict(os.environ,{'LOCALAPPDATA':str(bundle/'local')}),patch('assistant.toolbox.os.startfile') as start:
+                    open_geek({});cached=Path(start.call_args.args[0]);self.assertNotEqual(cached,executable);self.assertEqual(cached.read_bytes(),executable.read_bytes())
+                    # An existing modified working copy must be repaired from
+                    # the embedded resource before it can be executed again.
+                    cached.write_bytes(b'changed');open_geek({});self.assertEqual(cached.read_bytes(),executable.read_bytes())
     def test_undo_only_in_settings_and_isolates_accounts(self):
         from assistant.settings import SettingsDialog
         w=self.window;w.account='A';item=w.data['courses'][0];w.delete_item('courses',item)
