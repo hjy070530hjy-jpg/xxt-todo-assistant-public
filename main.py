@@ -1,4 +1,7 @@
 import sys,json
+if '--memory-clean-helper' in sys.argv:
+    from assistant.memory_cleaner import helper_main
+    sys.exit(helper_main(sys.argv[sys.argv.index('--memory-clean-helper')+1:]))
 from pathlib import Path
 from PySide6.QtWidgets import QApplication,QMessageBox
 from PySide6.QtCore import QTimer,QLockFile

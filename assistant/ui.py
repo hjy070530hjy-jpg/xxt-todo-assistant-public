@@ -310,6 +310,9 @@ class Window(QWidget):
         if behavior=='后台运行' and QSystemTrayIcon.isSystemTrayAvailable():self.hide()
         else:self.quit_app()
     def quit_app(self):
+        if hasattr(self,'memory_controller') and self.memory_controller.busy:
+            if not getattr(self,'_wait_memory_quit',False):self._wait_memory_quit=True;self.memory_controller.idle.connect(self.quit_app)
+            self.banner.setText('等待内存清理完成后退出…');return
         running=[w for w in self.detail_workers if w.isRunning()]
         if running:
             for worker in running:worker.requestInterruption();worker.finished.connect(self.quit_app)

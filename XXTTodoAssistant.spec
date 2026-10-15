@@ -1,11 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
+from pathlib import Path
+tool_data = [('extras/geek/geek.exe', 'extras/geek')] if Path('extras/geek/geek.exe').is_file() else []
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('licenses', 'licenses')],
+    datas=[('licenses', 'licenses'), ('assets/geek-tool.png', 'assets'), ('assets/memory-clean.svg', 'assets')] + tool_data,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

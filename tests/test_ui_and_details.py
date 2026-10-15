@@ -103,6 +103,69 @@ class DeletionTests(WindowTestCase):
         self.assertNotIn('示例教师',texts);self.assertNotIn('任务点',texts);self.assertNotIn('60%',texts);self.assertIn('未完成',texts);self.assertIn('结束',texts)
 
 class SettingsTests(WindowTestCase):
+    def test_memory_icon_requires_double_click_and_blocks_duplicates(self):
+        import threading
+        from unittest.mock import patch
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import Qt
+        from assistant.settings import SettingsDialog
+        from assistant.memory_cleaner import summarize
+        w=self.window;dialog=SettingsDialog(w);dialog.tabs.setCurrentIndex(3);dialog.show();self.app.processEvents();release=threading.Event()
+        result=summarize({'total':1024**3,'available':100},{'total':1024**3,'available':500},['工作集'],[])
+        def cleanup():release.wait(5);return result
+        with patch('assistant.memory_ui.run_cleanup',side_effect=cleanup) as clean:
+            QTest.mouseClick(dialog.memory_button,Qt.LeftButton);self.assertFalse(w.memory_controller.busy);clean.assert_not_called()
+            QTest.mouseDClick(dialog.memory_button,Qt.LeftButton);self.assertTrue(w.memory_controller.busy);self.assertFalse(dialog.memory_button.isEnabled());self.assertFalse(w.memory_controller.start())
+            release.set()
+            for _ in range(100):
+                self.app.processEvents();QTest.qWait(5)
+                if not w.memory_controller.busy:break
+            self.assertFalse(w.memory_controller.busy);clean.assert_called_once();self.assertTrue(dialog.memory_button.isEnabled());self.assertTrue(w.memory_controller.dialog.isVisible());w.memory_controller.dialog.accept()
+        dialog.reject();dialog.deleteLater()
+    def test_toolbox_is_icon_only_with_themed_hover_info(self):
+        from PySide6.QtCore import QEvent,QPoint,Qt
+        from PySide6.QtGui import QHelpEvent
+        from assistant.settings import SettingsDialog
+        dialog=SettingsDialog(self.window);dialog.tabs.setCurrentIndex(3);dialog.show();self.app.processEvents();button=dialog.geek_open_button
+        self.assertEqual(button.text(),'');self.assertEqual(button.toolButtonStyle(),Qt.ToolButtonIconOnly);self.assertFalse(button.info.isVisible())
+        self.assertFalse(any(b.text() in ['打开 Geek','选择程序…'] for b in dialog.findChildren(QPushButton)))
+        event=QHelpEvent(QEvent.ToolTip,QPoint(20,20),button.mapToGlobal(QPoint(20,20)));self.app.sendEvent(button,event);self.app.processEvents()
+        self.assertTrue(button.info.isVisible());self.assertIn('rgba(255,255,255,255)',button.info.styleSheet());self.assertTrue(button.screen().availableGeometry().contains(button.info.geometry()))
+        self.app.sendEvent(button,QEvent(QEvent.Leave));self.assertFalse(button.info.isVisible())
+        self.window.cfg.update(theme='透明模式',alpha=190);button.show_info();self.assertIn('rgba(255,255,255,190)',button.info.styleSheet())
+        button.info.hide();dialog.memory_button.show_info();self.app.processEvents()
+        from PySide6.QtWidgets import QLabel
+        for label in dialog.memory_button.info.findChildren(QLabel):self.assertGreaterEqual(label.height(),label.heightForWidth(label.width()))
+        dialog.hide();self.app.processEvents();self.assertFalse(button.info.isVisible());dialog.deleteLater()
+    def test_toolbox_selects_persists_and_opens_utility(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from assistant.settings import SettingsDialog
+        w=self.window
+        with tempfile.TemporaryDirectory(dir='.') as folder:
+            executable=Path(folder).resolve()/'geek.exe';executable.write_bytes(b'test fixture')
+            w.cfg['geek_path']=str(executable.parent/'missing.exe');dialog=SettingsDialog(w)
+            self.assertIn('百宝箱',[dialog.tabs.tabText(n) for n in range(dialog.tabs.count())]);self.assertTrue(dialog.geek_open_button.isEnabled())
+            with patch('assistant.settings.QFileDialog.getOpenFileName',return_value=(str(executable),'Windows 程序 (*.exe)')):dialog.choose_geek()
+            self.assertTrue(dialog.geek_open_button.isEnabled());self.assertEqual(w.store.get('settings')['geek_path'],str(executable))
+            with patch('assistant.toolbox.os.startfile') as start:
+                dialog.geek_open_button.click();start.assert_called_once_with(str(executable))
+            with patch('assistant.toolbox.os.startfile',side_effect=OSError('Unavailable')),patch('assistant.settings.QMessageBox.information') as message:
+                dialog.geek_open_button.click();message.assert_called_once();self.assertTrue(dialog.geek_open_button.isEnabled())
+            dialog.deleteLater()
+    def test_toolbox_finds_tool_inside_portable_bundle(self):
+        import tempfile,sys
+        from pathlib import Path
+        from unittest.mock import patch
+        from assistant.toolbox import geek_path,open_geek
+        with tempfile.TemporaryDirectory(dir='.') as folder:
+            bundle=Path(folder).resolve();executable=bundle/'extras'/'geek'/'geek.exe'
+            with patch.object(sys,'frozen',True,create=True),patch.object(sys,'_MEIPASS',str(bundle),create=True):
+                self.assertEqual(geek_path({}),executable)
+                with self.assertRaises(FileNotFoundError):open_geek({})
+                executable.parent.mkdir(parents=True);executable.write_bytes(b'test fixture')
+                with patch('assistant.toolbox.os.startfile') as start:open_geek({});start.assert_called_once_with(str(executable))
     def test_undo_only_in_settings_and_isolates_accounts(self):
         from assistant.settings import SettingsDialog
         w=self.window;w.account='A';item=w.data['courses'][0];w.delete_item('courses',item)

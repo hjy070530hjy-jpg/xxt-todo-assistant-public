@@ -1,6 +1,7 @@
 """Settings surface shares the main window's theme and visual language."""
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog,QFrame,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QTabWidget,QScrollArea,QWidget,QFormLayout,QSpinBox,QLineEdit,QCheckBox,QSlider,QComboBox,QButtonGroup,QMessageBox,QSizeGrip)
+from PySide6.QtCore import Qt,QSize
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import (QDialog,QFrame,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QTabWidget,QScrollArea,QWidget,QFormLayout,QSpinBox,QLineEdit,QCheckBox,QSlider,QComboBox,QButtonGroup,QMessageBox,QSizeGrip,QFileDialog,QStyle)
 from .theme import stylesheet
 
 class SettingsDialog(QDialog):
@@ -10,8 +11,8 @@ class SettingsDialog(QDialog):
         layout=QVBoxLayout(self.surface);layout.setContentsMargins(20,16,20,10);layout.setSpacing(12)
         header=QHBoxLayout();titles=QVBoxLayout();title=QLabel('偏好设置');title.setObjectName('settingsTitle');titles.addWidget(title);subtitle=QLabel('让桌面助手保持你的使用习惯');subtitle.setObjectName('hint');titles.addWidget(subtitle);header.addLayout(titles);header.addStretch();close=self.button(header,'×',self.finish);close.setFixedSize(28,28);layout.addLayout(header)
         self.tabs=QTabWidget();self.tabs.setObjectName('settingsTabs');layout.addWidget(self.tabs,1)
-        appearance=self.page('外观');sync=self.page('同步与提醒');account=self.page('账户与数据')
-        self.appearance_page(appearance);self.sync_page(sync);self.account_page(account)
+        appearance=self.page('外观');sync=self.page('同步与提醒');account=self.page('账户与数据');toolbox=self.page('百宝箱')
+        self.appearance_page(appearance);self.sync_page(sync);self.account_page(account);self.toolbox_page(toolbox)
         footer=QHBoxLayout();note=QLabel('设置仅保存在本机');note.setObjectName('hint');footer.addWidget(note);footer.addStretch();done=self.button(footer,'完成',self.finish);done.setObjectName('primary');layout.addLayout(footer)
         grip=QSizeGrip(self);layout.addWidget(grip,0,Qt.AlignRight);self.update_theme()
     def button(self,layout,label,callback):
@@ -42,6 +43,41 @@ class SettingsDialog(QDialog):
         login=self.button(row,'网页登录 / 切换账户',self.login);login.setObjectName('primary');login.setEnabled(not(owner.worker and owner.worker.isRunning()));self.button(row,'退出登录',self.logout)
         trash=self.card(page,'本地删除记录','右键删除仅隐藏本应用中的条目，不影响学习通。');self.deleted_label=QLabel();self.deleted_label.setObjectName('hint');trash.addWidget(self.deleted_label);self.undo_button=self.button(trash,'撤销上一次删除',self.undo_delete);self.restore_button=self.button(trash,'恢复已删除的课程与作业',self.restore_deleted);self.refresh_deleted()
         storage=self.card(page,'数据管理','清除账户会话、缓存和本地标记，保留界面设置。');clear=self.button(storage,'清除本地数据',lambda:owner.clear_data(self));clear.setObjectName('danger');page.addStretch()
+    def toolbox_page(self,page):
+        from .tool_widgets import ToolIcon,DoubleClickToolIcon
+        from .memory_ui import MemoryController
+        row=QHBoxLayout();row.setContentsMargins(4,6,4,0);page.addLayout(row)
+        self.geek_open_button=ToolIcon('Geek Uninstaller','卸载电脑中的应用，清理卸载后残留的文件与注册表项目。\n在独立窗口中使用。',lambda:self.owner.cfg,self)
+        self.geek_open_button.setIconSize(QSize(32,32));self.geek_open_button.clicked.connect(self.launch_geek);row.addWidget(self.geek_open_button)
+        self.memory_button=DoubleClickToolIcon('内存清理','回收工作集和待机缓存。完成后显示本次可用内存净增量，以及当前可用内存。\n部分缓存会在使用时重新载入。',lambda:self.owner.cfg,self);self.memory_button.setIconSize(QSize(32,32))
+        from pathlib import Path
+        import sys
+        base=Path(sys._MEIPASS) if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[1];self.memory_button.setIcon(QIcon(str(base/'assets'/'memory-clean.svg')));row.addWidget(self.memory_button);row.addStretch();row.setSpacing(12)
+        if not hasattr(self.owner,'memory_controller'):self.owner.memory_controller=MemoryController(self.owner)
+        controller=self.owner.memory_controller;self.memory_button.activated.connect(controller.start);controller.busy_changed.connect(self.memory_busy);self.memory_busy(controller.busy)
+        self.refresh_geek();page.addStretch()
+    def memory_busy(self,busy):
+        self.memory_button.setEnabled(not busy);self.memory_button.note.setText('正在清理，请稍候…' if busy else '双击清理 · 可能需要管理员授权')
+    def refresh_geek(self):
+        from .toolbox import geek_path
+        from pathlib import Path
+        import sys
+        path=geek_path(self.owner.cfg);ready=path.is_file() and path.suffix.lower()=='.exe'
+        base=Path(sys._MEIPASS) if getattr(sys,'frozen',False) else Path(__file__).resolve().parents[1]
+        icon=QIcon(str(base/'assets'/'geek-tool.png'))
+        if icon.isNull():icon=self.style().standardIcon(QStyle.SP_ComputerIcon)
+        self.geek_open_button.setIcon(icon);self.geek_open_button.note.setText('点击图标打开' if ready else '点击图标选择 geek.exe')
+    def choose_geek(self):
+        path,_=QFileDialog.getOpenFileName(self,'选择 Geek 程序','','Windows 程序 (*.exe)')
+        if not path:return False
+        self.owner.cfg['geek_path']=path;self.owner.save_settings();self.refresh_geek();return True
+    def launch_geek(self):
+        from .toolbox import open_geek,geek_path
+        if not geek_path(self.owner.cfg).is_file() and not self.choose_geek():return
+        try:open_geek(self.owner.cfg)
+        except OSError as error:
+            self.refresh_geek()
+            if getattr(error,'winerror',None)!=1223:QMessageBox.information(self,'无法打开 Geek','工具暂时无法启动，请检查文件是否可用。')
     def refresh_deleted(self):
         courses=len(self.owner.deleted_items('courses'));homework=len(self.owner.deleted_items('homework'));self.deleted_label.setText(f'课程 {courses} 项  ·  作业 {homework} 项');self.restore_button.setEnabled(bool(courses or homework));self.undo_button.setEnabled(any(entry[0]==self.owner.deletion_namespace() for entry in self.owner.undo_stack))
     def undo_delete(self):self.owner.undo_delete();self.refresh_deleted()

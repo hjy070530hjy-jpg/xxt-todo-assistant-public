@@ -1,5 +1,6 @@
 # Local development and credentials
 .venv/
+extras/geek/*.exe
 __pycache__/
 *.py[cod]
 .env
