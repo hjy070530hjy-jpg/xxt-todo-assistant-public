@@ -1,0 +1,25 @@
+# Local development and credentials
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+*.sqlite*
+*.db
+*.db-*
+*.log
+config.json
+session*.json
+*cookie*.json
+*token*.json
+# Machine-local research, diagnostics and output
+artifacts/
+research/
+tools/
+tmp*/
+build/
+dist/
+releases/
+*.zip
+*.lnk
+XXTDiagnostic.spec
