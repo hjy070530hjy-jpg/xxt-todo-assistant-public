@@ -13,6 +13,17 @@ def state(raw):
     if s in ('已逾期','已过期'): return '已逾期（提交状态未知）'
     return '状态未知：'+(s or '未提供')
 def pending(item): return item.get('status') in ('未提交','未开始')
+
+def homework_overdue(item,clock=None):
+    """Hide only work that the platform or a reliable deadline establishes as expired."""
+    if any(str(item.get(key,'')).startswith(('已逾期','已过期','已截止')) for key in ('status','raw_status','platform_time')):return True
+    d=item.get('deadline',{});kind=d.get('kind');clock=clock or now()
+    if kind not in ('exact','date'):return False
+    try:
+        end=datetime.fromisoformat(d['value'])
+        if end.tzinfo is None:return False
+        return end<clock if kind=='exact' else end.astimezone(TZ).date()<clock.astimezone(TZ).date()
+    except (KeyError,TypeError,ValueError):return False
 def deadline(text):
     if '至' in text:text=text.rsplit('至',1)[1]
     if re.search(r'无截止时间|未设置截止|不限时',text): return {'kind':'unset'}

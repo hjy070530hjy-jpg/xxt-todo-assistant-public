@@ -63,6 +63,27 @@ class CourseStatusTests(unittest.TestCase):
         for course in [{'progress':[0,0]},{'progress':[10,10],'stale':True},{'progress':None}]:self.assertEqual(course_completion(course),'完成状态未知')
 
 class DeletionTests(WindowTestCase):
+    def populate_scrollable_page(self,kind,page):
+        w=self.window;sample=w.data[kind][0]
+        w.data[kind]=[dict(sample,id=f'scroll-{n}',title=f'滚动测试 {n:02d}') for n in range(30)]
+        w.tabs.setCurrentRow(page);w.render();self.app.processEvents()
+        bar=w.scroll.verticalScrollBar();self.assertGreater(bar.maximum(),1000)
+        return bar
+    def test_delete_and_undo_keep_scroll_position_on_both_pages(self):
+        for kind,page in [('courses',0),('homework',1)]:
+            with self.subTest(kind=kind):
+                bar=self.populate_scrollable_page(kind,page);position=bar.maximum()//2;bar.setValue(position)
+                self.window.item_menu(kind,self.window.data[kind][15]).actions()[0].trigger();self.app.processEvents()
+                self.assertEqual(bar.value(),position)
+                self.window.undo_delete();self.app.processEvents();self.assertEqual(bar.value(),position)
+    def test_delete_last_item_clamps_to_new_bottom(self):
+        bar=self.populate_scrollable_page('courses',0);old_max=bar.maximum();bar.setValue(old_max)
+        self.window.delete_item('courses',self.window.data['courses'][-1]);self.app.processEvents()
+        self.assertLess(bar.maximum(),old_max);self.assertGreater(bar.value(),0);self.assertEqual(bar.value(),bar.maximum())
+    def test_switching_page_before_restore_does_not_reuse_old_position(self):
+        bar=self.populate_scrollable_page('courses',0);bar.setValue(bar.maximum()//2)
+        self.window.delete_item('courses',self.window.data['courses'][15]);self.window.tabs.setCurrentRow(1);self.app.processEvents()
+        self.assertEqual(bar.value(),0)
     def test_context_menu_deletes_locally_survives_refresh_and_undoes(self):
         w=self.window;item=w.data['courses'][0];menu=w.item_menu('courses',item);menu.actions()[0].trigger()
         self.assertIn(item['id'],w.deleted_items('courses'));self.assertEqual(len(w.data['courses']),1)
@@ -91,6 +112,20 @@ class SettingsTests(WindowTestCase):
         self.assertFalse(w.cfg['notify']);self.assertEqual(w.cfg['interval'],45);self.assertFalse(dialog.isVisible())
 
 class FailedDisplayTests(WindowTestCase):
+    def test_overdue_homework_hidden_in_all_filters_and_returns_if_extended(self):
+        from PySide6.QtWidgets import QLabel
+        from assistant.domain import now,timedelta
+        w=self.window;sample=w.data['homework'][0]
+        expired=dict(sample,id='expired',title='过期样本',deadline={'kind':'exact','value':(now()-timedelta(hours=1)).isoformat()})
+        platform=dict(sample,id='platform-expired',title='平台过期样本',status='已逾期（提交状态未知）',deadline={'kind':'unsupported'})
+        unknown=dict(sample,id='unknown',title='日期未知样本',deadline={'kind':'partial','raw':'01-01 12:00'})
+        w.data['homework'] += [expired,platform,unknown];w.tabs.setCurrentRow(1)
+        def content():return ' '.join(label.text() for label in w.scroll.widget().findChildren(QLabel))
+        self.assertNotIn('已逾期',[w.filter.itemText(n) for n in range(w.filter.count())])
+        for index in range(w.filter.count()):
+            w.filter.setCurrentIndex(index);self.assertNotIn('过期样本',content())
+        w.filter.setCurrentIndex(0);self.assertIn('日期未知样本',content());self.assertEqual(len(w.data['homework']),4)
+        expired['deadline']['value']=(now()+timedelta(hours=1)).isoformat();w.render();self.assertIn('过期样本',content());self.assertNotIn('平台过期样本',content())
     def test_failed_records_hidden_without_removing_cache_and_return_when_recovered(self):
         from PySide6.QtWidgets import QLabel
         w=self.window;course=dict(w.data['courses'][0],id='failed-course',title='失败课程样本',stale=True)

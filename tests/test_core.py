@@ -5,6 +5,17 @@ from assistant.domain import *
 from assistant.api import Client,QueryError,sync,NOTICE,WORK
 from assistant.storage import Store
 class DomainTests(unittest.TestCase):
+    def test_overdue_homework_requires_reliable_evidence(self):
+        clock=datetime(2026,10,15,12,tzinfo=TZ)
+        for item in [
+            {'status':'已逾期（提交状态未知）'},
+            {'raw_status':'已过期'},
+            {'platform_time':'已截止'},
+            {'deadline':deadline('2026-10-15 11:59')},
+            {'deadline':deadline('2026-10-14')},
+        ]:self.assertTrue(homework_overdue(item,clock),item)
+        for d in [deadline('2026-10-15'),deadline('2026-10-15 12:01'),{'kind':'partial','raw':'10-14 23:59'},{'kind':'unset'},{'kind':'failed'},{'kind':'unsupported'},{'kind':'exact','value':'bad'}]:
+            self.assertFalse(homework_overdue({'status':'未提交','deadline':d},clock),d)
     def test_submitted_not_pending(self):
         for v in ['待批閱','待批阅','已提交','已完成','待互评']:
             self.assertFalse(pending({'status':state(v)}))

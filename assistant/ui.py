@@ -88,7 +88,7 @@ class Window(QWidget):
         self.apply_settings();self.restore_geometry();self.render()
         if self.account:QTimer.singleShot(1000,self.start_sync)
     def change_page(self,row):
-        self.filter.blockSignals(True);self.filter.setCurrentIndex(1 if row==1 else 0);self.filter.blockSignals(False);self.render()
+        self.filter.blockSignals(True);self.filter.clear();self.filter.addItems(['全部','仅未完成','今天截止','24小时内']+([] if row==1 else ['已逾期']));self.filter.setCurrentIndex(1 if row==1 else 0);self.filter.blockSignals(False);self.render()
     def button(self,box,text,fn):
         b=QPushButton(text);b.clicked.connect(lambda checked=False:fn());box.addWidget(b);return b
     def reveal(self):self.showNormal();self.raise_();self.activateWindow()
@@ -127,13 +127,13 @@ class Window(QWidget):
         return menu
     def delete_item(self,kind,item):
         key=self.deletion_key(kind);deleted=self.store.get(key,{});deleted[item['id']]=item['title'];self.store.put(key,deleted)
-        self.undo_stack.append((self.deletion_namespace(),kind,item['id']));self.render()
+        self.undo_stack.append((self.deletion_namespace(),kind,item['id']));self.render(preserve_scroll=True)
     def undo_delete(self):
         namespace=self.deletion_namespace()
         for n in range(len(self.undo_stack)-1,-1,-1):
             owner,kind,ident=self.undo_stack[n]
             if owner!=namespace:continue
-            self.undo_stack.pop(n);key=self.deletion_key(kind);deleted=self.store.get(key,{});deleted.pop(ident,None);self.store.put(key,deleted);self.render();return
+            self.undo_stack.pop(n);key=self.deletion_key(kind);deleted=self.store.get(key,{});deleted.pop(ident,None);self.store.put(key,deleted);self.render(preserve_scroll=True);return
     def restore_deleted(self):
         namespace=self.deletion_namespace()
         for kind in ('courses','homework'):self.store.delete(self.deletion_key(kind))
@@ -145,8 +145,9 @@ class Window(QWidget):
         if f==3:return bool(r) and r!='已逾期' and (datetime.fromisoformat(d['value'])-now()).total_seconds()<=86400
         if f==4:return r=='已逾期'
         return True
-    def render(self,*args):
+    def render(self,*args,preserve_scroll=False):
         if not hasattr(self,'scroll'):return
+        scroll_position=self.scroll.verticalScrollBar().value() if preserve_scroll else None
         widget=QWidget();box=QVBoxLayout(widget);box.setContentsMargins(0,0,1,0);box.setSpacing(6);page=self.tabs.currentRow();d=self.data
         banner='未登录 · 点击左下角⚙连接账户'
         if self.demo:banner='示例数据 · 非真实账户'
@@ -171,7 +172,7 @@ class Window(QWidget):
             if not shown:self.card(box,'暂无可显示课程','可调整筛选或稍后刷新，查询成功后会重新显示。')
         elif page==1:
             for i in sorted(homework,key=sort_key):
-                if i['id'] in deleted_homework or i.get('stale'):continue
+                if i['id'] in deleted_homework or i.get('stale') or homework_overdue(i):continue
                 if self.eligible(i):self.item_card(box,i);shown+=1
             if not shown:self.card(box,'暂无可显示作业','可调整筛选或稍后刷新，查询成功后会重新显示。')
         else:
@@ -185,6 +186,13 @@ class Window(QWidget):
         if page==2 and '通知' in d.get('errors',{}):self.card(box,'消息暂不可用',d['errors']['通知'])
         if not self.account:self.button(box,'查看示例',self.load_demo)
         box.addStretch();self.scroll.setWidget(widget)
+        if scroll_position is not None:
+            def restore_scroll():
+                # Replacing the content resets QScrollArea. Restore after Qt has
+                # laid out the new cards, and ignore a newer page/filter render.
+                if self.scroll.widget() is widget:
+                    bar=self.scroll.verticalScrollBar();bar.setValue(min(scroll_position,bar.maximum()))
+            QTimer.singleShot(0,widget,restore_scroll)
     def load_more_notices(self):
         self.notice_limit+=30;self.render()
     def item_card(self,box,i):
