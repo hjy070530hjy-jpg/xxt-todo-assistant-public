@@ -2,10 +2,16 @@ import os
 from pathlib import Path
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFontDatabase
 from assistant.ui import Window,configure_app
 from assistant.settings import SettingsDialog
 from tests.test_ui_and_details import MemoryStore
-app=QApplication([]);configure_app(app);Path('artifacts/v3').mkdir(parents=True,exist_ok=True);w=Window(MemoryStore());w.load_demo();w.show()
+app=QApplication([])
+# Qt's offscreen plugin needs explicit font registration on Windows.
+for name in ['msyh.ttc','msyhbd.ttc']:
+    font=Path(os.environ.get('WINDIR','C:/Windows'))/'Fonts'/name
+    if font.exists():QFontDatabase.addApplicationFont(str(font))
+configure_app(app);Path('artifacts/v3').mkdir(parents=True,exist_ok=True);w=Window(MemoryStore());w.load_demo();w.show()
 for theme in ['纯白模式','透明模式']:
     w.cfg['theme']=theme;w.apply_settings();w.show()
     for size in [(480,270),(420,240)]:

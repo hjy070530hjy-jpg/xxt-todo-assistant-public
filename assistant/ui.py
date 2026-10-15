@@ -81,7 +81,7 @@ class Window(QWidget):
         self.controls=QHBoxLayout();self.controls.setSpacing(4);self.filter=QComboBox();self.filter.addItems(['全部','仅未完成','今天截止','24小时内','已逾期']);self.filter.setMinimumWidth(0);self.filter.setMaximumWidth(108);self.filter.currentIndexChanged.connect(self.render);self.controls.addWidget(self.filter)
         self.hide_history=QCheckBox('隐藏历史');self.hide_history.setChecked(self.cfg.get('hide_history',True));self.hide_history.toggled.connect(self.render);self.controls.addWidget(self.hide_history);self.controls.addStretch();content.addLayout(self.controls)
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setFrameShape(QFrame.NoFrame);content.addWidget(self.scroll,1)
-        foot=QHBoxLayout();self.stamp=QLabel('尚未同步');self.stamp.setWordWrap(True);foot.addWidget(self.stamp,1);self.undo_button=self.button(foot,'撤销删除',self.undo_delete);self.undo_button.hide();self.refresh=self.button(foot,'刷新',self.start_sync);self.refresh.setToolTip('立即同步');content.addLayout(foot);grip=QSizeGrip(self);layout.addWidget(grip,0,Qt.AlignRight)
+        foot=QHBoxLayout();self.stamp=QLabel('尚未同步');self.stamp.setWordWrap(True);foot.addWidget(self.stamp,1);self.refresh=self.button(foot,'刷新',self.start_sync);self.refresh.setToolTip('立即同步');content.addLayout(foot);grip=QSizeGrip(self);layout.addWidget(grip,0,Qt.AlignRight)
         pix=QPixmap(32,32);pix.fill(QColor('#397461'));p=QPainter(pix);p.setPen(Qt.white);p.setFont(QFont('Microsoft YaHei UI',18));p.drawText(pix.rect(),Qt.AlignCenter,'学');p.end();self.icon=QIcon(pix);self.setWindowIcon(self.icon)
         self.tray=QSystemTrayIcon(self.icon,self);self.tray.setToolTip('学习通待办助手');menu=QMenu();menu.addAction('显示窗口',self.reveal);menu.addAction('立即同步',self.start_sync);menu.addSeparator();menu.addAction('退出',self.quit_app);self.tray.setContextMenu(menu);self.tray.activated.connect(lambda r:self.reveal() if r==QSystemTrayIcon.Trigger else None);self.tray.show()
         self.timer=QTimer(self);self.timer.timeout.connect(self.start_sync);self.reminder_timer=QTimer(self);self.reminder_timer.timeout.connect(self.remind);self.reminder_timer.start(60000);self.last_tick=now()
@@ -159,7 +159,6 @@ class Window(QWidget):
         self.stamp.setText('同步 '+(datetime.fromisoformat(d['updated']).astimezone(TZ).strftime('%m-%d %H:%M') if d.get('updated') else '尚未完成'))
         courses=d.get('courses',[]);homework=d.get('homework',[]);shown=0
         deleted_courses=self.deleted_items('courses');deleted_homework=self.deleted_items('homework')
-        self.undo_button.setVisible(any(entry[0]==self.deletion_namespace() for entry in self.undo_stack))
         if page==0:
             for c in courses:
                 if c['id'] in deleted_courses or c.get('stale'):continue

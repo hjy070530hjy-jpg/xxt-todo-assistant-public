@@ -40,10 +40,11 @@ class SettingsDialog(QDialog):
     def account_page(self,page):
         owner=self.owner;box=self.card(page,'我的账户','已连接 · 会话由 Windows 系统加密保护' if owner.account else '尚未连接学习通账户');row=QHBoxLayout();box.addLayout(row)
         login=self.button(row,'网页登录 / 切换账户',self.login);login.setObjectName('primary');login.setEnabled(not(owner.worker and owner.worker.isRunning()));self.button(row,'退出登录',self.logout)
-        trash=self.card(page,'本地删除记录','右键删除仅隐藏本应用中的条目，不影响学习通。');self.deleted_label=QLabel();self.deleted_label.setObjectName('hint');trash.addWidget(self.deleted_label);self.restore_button=self.button(trash,'恢复已删除的课程与作业',self.restore_deleted);self.refresh_deleted()
+        trash=self.card(page,'本地删除记录','右键删除仅隐藏本应用中的条目，不影响学习通。');self.deleted_label=QLabel();self.deleted_label.setObjectName('hint');trash.addWidget(self.deleted_label);self.undo_button=self.button(trash,'撤销上一次删除',self.undo_delete);self.restore_button=self.button(trash,'恢复已删除的课程与作业',self.restore_deleted);self.refresh_deleted()
         storage=self.card(page,'数据管理','清除账户会话、缓存和本地标记，保留界面设置。');clear=self.button(storage,'清除本地数据',lambda:owner.clear_data(self));clear.setObjectName('danger');page.addStretch()
     def refresh_deleted(self):
-        courses=len(self.owner.deleted_items('courses'));homework=len(self.owner.deleted_items('homework'));self.deleted_label.setText(f'课程 {courses} 项  ·  作业 {homework} 项');self.restore_button.setEnabled(bool(courses or homework))
+        courses=len(self.owner.deleted_items('courses'));homework=len(self.owner.deleted_items('homework'));self.deleted_label.setText(f'课程 {courses} 项  ·  作业 {homework} 项');self.restore_button.setEnabled(bool(courses or homework));self.undo_button.setEnabled(any(entry[0]==self.owner.deletion_namespace() for entry in self.owner.undo_stack))
+    def undo_delete(self):self.owner.undo_delete();self.refresh_deleted()
     def restore_deleted(self):self.owner.restore_deleted();self.refresh_deleted()
     def update_theme(self):
         cfg=self.owner.cfg;alpha=cfg.get('alpha',220) if cfg.get('theme','纯白模式')=='透明模式' else 255;self.setStyleSheet(stylesheet(alpha));self.alpha_label.setText(f'{round(cfg.get("alpha",220)/255*100)}%' if cfg.get('theme','纯白模式')=='透明模式' else '透明模式下可调');self.alpha.setEnabled(cfg.get('theme','纯白模式')=='透明模式')
@@ -58,7 +59,7 @@ class SettingsDialog(QDialog):
         except ValueError:QMessageBox.information(self,'提醒时间无效','请输入大于0且不超过8760的小时数，例如24,2。');self.tabs.setCurrentIndex(1);self.hours.setFocus();return
         try:self.owner.set_autostart(self.autostart.isChecked())
         except OSError:QMessageBox.information(self,'设置失败','无法写入 Windows 自启动项，请稍后重试。');return
-        self.owner.cfg.update(interval=self.interval.value(),notify=self.notify.isChecked(),hours=hours,top=self.top.isChecked(),close=self.close_behavior.currentText(),autostart=self.autostart.isChecked());self.owner.apply_settings();self.owner.save_settings();self.owner.show();self.owner.render();self.accept()
+        self.owner.cfg.update(interval=self.interval.value(),notify=self.notify.isChecked(),hours=hours,top=self.top.isChecked(),close=self.close_behavior.currentText(),autostart=self.autostart.isChecked());self.owner.apply_settings();self.owner.save_settings();self.owner.show();self.owner.render(preserve_scroll=True);self.accept()
     def login(self):self.accept();self.owner.login()
     def logout(self):
         if self.owner.logout():self.accept()

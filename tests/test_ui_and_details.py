@@ -89,7 +89,8 @@ class DeletionTests(WindowTestCase):
         self.assertIn(item['id'],w.deleted_items('courses'));self.assertEqual(len(w.data['courses']),1)
         w.load_demo();self.assertIn(item['id'],w.deleted_items('courses'))
         self.assertFalse(any(f.property('recordId')==item['id'] for f in w.scroll.widget().findChildren(__import__('PySide6.QtWidgets',fromlist=['QFrame']).QFrame)))
-        w.undo_button.click();self.assertNotIn(item['id'],w.deleted_items('courses'))
+        from assistant.settings import SettingsDialog
+        dialog=SettingsDialog(w);dialog.undo_button.click();self.assertNotIn(item['id'],w.deleted_items('courses'));self.assertFalse(dialog.undo_button.isEnabled());dialog.deleteLater()
     def test_account_isolation_and_restore(self):
         w=self.window;w.account='A';w.delete_item('homework',w.data['homework'][0]);self.assertTrue(w.deleted_items('homework'))
         w.account='B';self.assertFalse(w.deleted_items('homework'))
@@ -102,6 +103,13 @@ class DeletionTests(WindowTestCase):
         self.assertNotIn('示例教师',texts);self.assertNotIn('任务点',texts);self.assertNotIn('60%',texts);self.assertIn('未完成',texts);self.assertIn('结束',texts)
 
 class SettingsTests(WindowTestCase):
+    def test_undo_only_in_settings_and_isolates_accounts(self):
+        from assistant.settings import SettingsDialog
+        w=self.window;w.account='A';item=w.data['courses'][0];w.delete_item('courses',item)
+        self.assertFalse(any('撤销' in b.text() for b in w.findChildren(QPushButton)))
+        w.account='B';dialog=SettingsDialog(w);self.assertFalse(dialog.undo_button.isEnabled());dialog.deleteLater()
+        w.account='A';dialog=SettingsDialog(w);self.assertTrue(dialog.undo_button.isEnabled());dialog.undo_button.click()
+        self.assertFalse(w.deleted_items('courses'));self.assertFalse(dialog.undo_button.isEnabled());self.assertFalse(dialog.restore_button.isEnabled());dialog.deleteLater()
     def test_preview_and_save_use_shared_theme_and_preserve_options(self):
         from assistant.settings import SettingsDialog
         w=self.window;w.set_autostart=lambda enabled:None;dialog=SettingsDialog(w);dialog.show();self.app.processEvents()
